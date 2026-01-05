@@ -10,6 +10,7 @@ import { Accelerometer } from 'expo-sensors';
 import { startStepCounter } from '../services/stepCounter';
 import { useAppStore } from '../stores/appStore';
 import { useNavigation } from '@react-navigation/native';
+import { getPersonByName } from '../db/database';
 
 
 const { width, height } = Dimensions.get('window');
@@ -41,6 +42,18 @@ export default function ReadyScreen() {
     <TouchableOpacity style={styles.mapButton} onPress={() => (navigation as any).navigate('RouteView')}>
       <Text style={styles.mapText}>🚀 View Route</Text>
     </TouchableOpacity>
+
+    <TouchableOpacity 
+        style={[styles.mapButton, { backgroundColor: '#FF9500', marginTop: 10 }]} 
+        onPress={async () => {
+          console.log('🔍 Searching Dean...');
+          const dean = await getPersonByName('Dr. Aris'); // Search name from seedDB
+          console.log('✅ FOUND:', dean);
+          if (dean) alert(`Found: ${dean.name}\nOffice: ${dean.office}`);
+          else alert('Dean not found!');
+        }}>
+        <Text style={styles.mapText}>🧑‍💼 Test DB Search</Text>
+      </TouchableOpacity>
     </View>
   );
 }

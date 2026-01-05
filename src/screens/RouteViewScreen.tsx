@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,37 +9,56 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../stores/appStore';
-
-const mockRoute = [
-  'Walk 15m straight ahead',
-  'Turn Left at corridor junction',
-  'Take stairs to Floor 2',
-  'Dean office - Room O304 (50m)',
-];
+import { getPersonByName, Person } from '../db/database';
 
 export default function RouteViewScreen() {
   const navigation = useNavigation();
-  const { building, position } = useAppStore(); // Fixed: removed 'floor'
+  const { building, position } = useAppStore();
+  const [targetPerson, setTargetPerson] = useState<Person | null>(null);
+
+  // Load Dean data on mount
+  useEffect(() => {
+    getPersonByName('Dr. Aris').then(setTargetPerson);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Route to Dean Office</Text>
+          <Text style={styles.title}>Route to {targetPerson ? targetPerson.name : '...'}</Text>
           <Text style={styles.distance}>2 min - 120m</Text>
           <Text style={styles.currentPos}>
-            Current: {building} | Floor 1 | Pos: {position.x.toFixed(1)}, {position.y.toFixed(1)} {/* Fixed */}
+            Current: {building} | Floor 1 | Pos: {position.x.toFixed(1)}, {position.y.toFixed(1)}
           </Text>
         </View>
 
-        {mockRoute.map((step, index) => (
-          <View key={index} style={styles.stepContainer}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNum}>{index + 1}</Text>
+        {targetPerson ? (
+          <>
+            {/* Dynamic steps based on person */}
+            <View style={styles.stepContainer}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNum}>1</Text>
+              </View>
+              <Text style={styles.stepText}>Walk to {targetPerson.building}</Text>
             </View>
-            <Text style={styles.stepText}>{step}</Text>
-          </View>
-        ))}
+
+            <View style={styles.stepContainer}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNum}>2</Text>
+              </View>
+              <Text style={styles.stepText}>Go to Floor {targetPerson.floor}</Text>
+            </View>
+
+            <View style={styles.stepContainer}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNum}>3</Text>
+              </View>
+              <Text style={styles.stepText}>Find {targetPerson.office}</Text>
+            </View>
+          </>
+        ) : (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>Loading route data...</Text>
+        )}
       </ScrollView>
 
       <TouchableOpacity
@@ -51,7 +70,6 @@ export default function RouteViewScreen() {
   );
 }
 
-// styles remain the same...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
