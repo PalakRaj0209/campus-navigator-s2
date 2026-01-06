@@ -11,6 +11,7 @@ import { startStepCounter } from '../services/stepCounter';
 import { useAppStore } from '../stores/appStore';
 import { useNavigation } from '@react-navigation/native';
 import { getPersonByName } from '../db/database';
+import { getRouteToDean } from '../services/routingService';
 
 
 const { width, height } = Dimensions.get('window');
@@ -54,6 +55,16 @@ export default function ReadyScreen() {
         }}>
         <Text style={styles.mapText}>🧑‍💼 Test DB Search</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity 
+  style={[styles.mapButton, { backgroundColor: '#8E44AD', marginTop: 10 }]} 
+  onPress={() => {
+    const route = getRouteToDean();
+    console.log('🗺️ Route to Dean:', route);
+    alert(`Route: ${route.join(' → ')}`);
+  }}>
+  <Text style={styles.mapText}>🗺️ Test Route Graph</Text>
+</TouchableOpacity>
     </View>
   );
 }
