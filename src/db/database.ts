@@ -11,6 +11,7 @@ export interface Person {
   id: number;
   firebase_id: string;
   name: string;
+  role: string;
   office: string;
   floor: number;
   building: string;
@@ -35,7 +36,17 @@ export const initDB = () => {
   });
   console.log('✅ Personnel table ready');
 };
-
+// Add this function to your database.ts file
+export const getAllPersonnel = (): Person[] => {
+  try {
+    // This fetches every row from the personnel table
+    const allRows = db.getAllSync<Person>('SELECT * FROM personnel');
+    return allRows;
+  } catch (error) {
+    console.error("Error fetching personnel:", error);
+    return [];
+  }
+};
 export const seedDB = () => {
   const demoData = [
     { firebase_id: "dean_001", name: "Dr. Aris", office: "Admin Block Room 101", floor: 1, building: "Main Building", lat: 23.344, lng: 85.309 },
