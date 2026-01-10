@@ -28,6 +28,11 @@
     },
     "plugins": [
       "expo-sqlite"
-    ]
+    ],
+    "permissions": [
+    "android.permission.ACTIVITY_RECOGNITION",
+    "android.permission.ACCESS_FINE_LOCATION"
+  ],
+  "package": "com.yourname.campusnavigator" 
   }
 }

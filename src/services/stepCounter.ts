@@ -1,21 +1,42 @@
-import { useAppStore } from '../stores/appStore';
 import { Accelerometer } from 'expo-sensors';
 
 let stepCount = 0;
-let prevZ = 0;
+let lastUpdate = 0;
 
+// ✅ Named export - matches your import in FloorMapScreen
 export const startStepCounter = (callback: (steps: number) => void) => {
   Accelerometer.setUpdateInterval(100);
-  Accelerometer.addListener(({ z }) => {
-    if (z > 1.2 && prevZ < 0.8) {
-      stepCount++;
-      callback(stepCount);
+  
+  // @ts-ignore - Expo sensor event type
+  const subscription = Accelerometer.addListener(({ x, y, z }) => {
+    // Calculate total acceleration force
+    const totalForce = Math.sqrt(x * x + y * y + z * z);
+    
+    // Step threshold (tune if needed)
+    if (totalForce > 1.2) {
+      const now = Date.now();
       
-      // Position update here:
-      const store = useAppStore.getState();
-      store.setPosition({ x: stepCount * 0.5, y: stepCount * 0.3, floor: 1 });
-      console.log('POSITION:', stepCount * 0.5, stepCount * 0.3);
+      // Debounce to prevent multiple triggers per step
+      if (now - lastUpdate > 500) {
+        stepCount++;
+        lastUpdate = now;
+        callback(stepCount);
+        
+        console.log('✅ STEP DETECTED:', stepCount);
+      }
     }
-    prevZ = z;
   });
+  
+  // Cleanup function
+  return () => {
+    subscription.remove();
+  };
 };
+
+// Reset function (for testing)
+export const resetSteps = () => {
+  stepCount = 0;
+};
+
+// Get current count (for debugging)
+export const getSteps = () => stepCount;
