@@ -1,22 +1,27 @@
-import { useAppStore } from '../stores/appStore';
+import { useState, useEffect } from 'react';
+import { Magnetometer } from 'expo-sensors';
 
-interface Position {
-  x: number;
-  y: number;
-  floor: number;
-}
+export const useMagnetometer = () => {
+  const [heading, setHeading] = useState(0);
 
-let currentPos: Position = { x: 5, y: 5, floor: 1 };
+  useEffect(() => {
+    let subscription: any;
 
-export const updatePosition = (accelData: any, steps: number) => {
-  // Simple: Move based on steps + shake direction
-  currentPos.x += Math.sin(steps * 0.1) * 0.5;
-  currentPos.y += Math.cos(steps * 0.1) * 0.5;
-  
-  const store = useAppStore.getState();
-  store.setPosition(currentPos);
-  
-  console.log('POSITION:', currentPos);
+    const subscribe = () => {
+      subscription = Magnetometer.addListener(data => {
+        // Convert magnetometer data to degrees (0-360)
+        let angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
+        if (angle < 0) angle += 360;
+        setHeading(Math.round(angle));
+      });
+      
+      // Update rate for smooth arrow movement
+      Magnetometer.setUpdateInterval(100);
+    };
+
+    subscribe();
+    return () => subscription && subscription.remove();
+  }, []);
+
+  return heading;
 };
-
-export const getPosition = () => currentPos;

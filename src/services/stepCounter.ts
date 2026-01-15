@@ -1,42 +1,33 @@
+// src/services/stepCounter.ts
 import { Accelerometer } from 'expo-sensors';
+import { useAppStore } from '../stores/appStore';
 
 let stepCount = 0;
-let lastUpdate = 0;
+let prevZ = 0;
 
-// ✅ Named export - matches your import in FloorMapScreen
 export const startStepCounter = (callback: (steps: number) => void) => {
+  // Sets the speed of the IMU sensor updates
   Accelerometer.setUpdateInterval(100);
-  
-  // @ts-ignore - Expo sensor event type
-  const subscription = Accelerometer.addListener(({ x, y, z }) => {
-    // Calculate total acceleration force
-    const totalForce = Math.sqrt(x * x + y * y + z * z);
-    
-    // Step threshold (tune if needed)
-    if (totalForce > 1.2) {
-      const now = Date.now();
+
+  const subscription = Accelerometer.addListener(({ z }) => {
+    // Your winning threshold logic from Day 1
+    if (z > 1.2 && prevZ < 0.8) {
+      stepCount++;
+      callback(stepCount);
       
-      // Debounce to prevent multiple triggers per step
-      if (now - lastUpdate > 500) {
-        stepCount++;
-        lastUpdate = now;
-        callback(stepCount);
-        
-        console.log('✅ STEP DETECTED:', stepCount);
-      }
+      // Instantly update the global position in Zustand
+      const store = useAppStore.getState();
+      const currentPos = store.position;
+      
+      // Move the dot forward on the SVG map (adjust values as needed)
+      store.setPosition({ 
+        x: currentPos.x, 
+        y: currentPos.y - 5, // Moves "up" the corridor
+        floor: currentPos.floor 
+      });
     }
+    prevZ = z;
   });
-  
-  // Cleanup function
-  return () => {
-    subscription.remove();
-  };
-};
 
-// Reset function (for testing)
-export const resetSteps = () => {
-  stepCount = 0;
+  return () => subscription.remove();
 };
-
-// Get current count (for debugging)
-export const getSteps = () => stepCount;
