@@ -1,77 +1,60 @@
-// src/services/routing.ts
+import { campusGraph, CORRIDOR_X } from '../data/graph';
 
-export const getRoutePoints = (nodeId: string): string => {
-  const corridorX = 250; // Center of the yellow corridor
-  const entranceY = 850; // Updated to your bottom entrance coordinate
-  
-  const roomCoords: { [key: string]: { x: number, y: number } } = {
-    // --- GROUND FLOOR (Floor 0) ---
-    "f0_principal": { x: 140, y: 375 },
-    "f0_hod1": { x: 155, y: 150 },
-    "f0_hod2": { x: 155, y: 195 },
-    "f0_hod3": { x: 155, y: 240 },
-    "f0_hod4": { x: 155, y: 285 },
-    "f0_office": { x: 360, y: 305 },
-    "f0_machine": { x: 360, y: 640 },
-    "f0_model_pharm": { x: 360, y: 500 },
-    "f0_instrumental": { x: 360, y: 180 },
-    "f0_lifts": { x: 345, y: 400 },
+export const getRoutePoints = (
+  startNodeId: string,
+  targetNodeId: string
+): string => {
+  const start = campusGraph.nodes.find(n => n.id === startNodeId);
+  const target = campusGraph.nodes.find(n => n.id === targetNodeId);
 
-    // --- 1st FLOOR ---
-    "f1_class1": { x: 365, y: 195 },
-    "f1_class2": { x: 365, y: 295 },
-    "f1_class3": { x: 365, y: 530 },
-    "f1_class4": { x: 365, y: 680 },
-    "f1_girls_common": { x: 130, y: 670 },
-    "f1_boys_common": { x: 130, y: 530 },
+  if (!start || !target) return '';
 
-    // --- 2nd FLOOR ---
-    "f2_library": { x: 370, y: 610 },
-    "f2_computer": { x: 365, y: 200 },
-    "f2_faculty": { x: 135, y: 310 },
-
-    // --- 3rd FLOOR ---
-    "f3_pceutics3": { x: 135, y: 205 },
-    "f3_pchem1": { x: 135, y: 480 },
-    "f3_analysis": { x: 365, y: 220 },
-    "f3_pcology1": { x: 365, y: 610 },
-  };
-
-  const target = roomCoords[nodeId];
-  
-  if (target) {
-    // Generates: Entrance -> Pivot point -> Room center
-    return `${corridorX},${entranceY} ${corridorX},${target.y} ${target.x},${target.y}`;
-  }
-
-  return `${corridorX},${entranceY} ${corridorX},100`;
+  return [
+    `${start.x},${start.y}`,          // entrance
+    `${CORRIDOR_X},${target.y}`,      // straight corridor
+    `${target.x},${target.y}`         // into room
+  ].join(' ');
 };
 
 /**
- * NEW: Path Snapping Logic
- * Forces the blue arrow to stay on the route points
+ * Move forward ONLY along the polyline
  */
-export const getClosestPointOnPath = (userX: number, userY: number, nodeId: string) => {
-  const corridorX = 250;
-  const pathString = getRoutePoints(nodeId);
-  const points = pathString.split(' ').map(p => {
-    const [px, py] = p.split(',').map(Number);
-    return { x: px, y: py };
+export const moveAlongRoute = (
+  step: number,
+  route: string,
+  progress: number
+) => {
+  const points = route.split(' ').map(p => {
+    const [x, y] = p.split(',').map(Number);
+    return { x, y };
   });
 
-  // The 'Turn Point' is always the second point in your path
-  const turnPoint = points[1]; 
-  const endPoint = points[2];
-
-  // Logic: If user is still below the turn point, lock them to the corridor
-  if (userY > turnPoint.y) {
-    return { x: corridorX, y: userY };
-  } 
-  
-  // Logic: Once they reach or pass the turn point, lock them to the horizontal path
-  if (endPoint) {
-    return { x: userX, y: turnPoint.y };
+  if (points.length < 2) {
+    return { x: 0, y: 0, progress };
   }
 
-  return { x: corridorX, y: userY };
+  let remaining = step;
+
+  for (let i = progress; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+
+    if (remaining <= dist) {
+      const t = remaining / dist;
+      return {
+        x: a.x + t * (b.x - a.x),
+        y: a.y + t * (b.y - a.y),
+        progress: i
+      };
+    }
+
+    remaining -= dist;
+  }
+
+  return {
+    x: points[points.length - 1].x,
+    y: points[points.length - 1].y,
+    progress: points.length - 1
+  };
 };

@@ -1,116 +1,197 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions } from 'react-native';
-import Svg, { SvgXml, Polyline, G, Path, Circle } from 'react-native-svg';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Dimensions
+} from 'react-native';
+import Svg, { SvgXml, Polyline, G, Path } from 'react-native-svg';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { getFloorSVG } from '../data/floorPlans';
-import { useAppStore } from '../stores/appStore'; 
+import { campusGraph } from '../data/graph';
 import { initPedometer, stopPedometer } from '../services/stepSensor';
-import { useMagnetometer } from '../services/position'; 
-import { getRoutePoints, getClosestPointOnPath } from '../services/routing';
+import { useMagnetometer } from '../services/position';
+import { useAppStore } from '../stores/appStore';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const ZoomableView = ReactNativeZoomableView as any;
+
+// corridor + entrance (MATCH YOUR SVG)
+const CORRIDOR_X = 250;
+const ENTRANCE_Y = 780;
+const STEP_DISTANCE = 15;
 
 export default function FloorMapScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { position, setPosition } = useAppStore(); 
-  
-  const [steps, setSteps] = useState(0);
-  const heading = useMagnetometer(); 
-  const zoomableViewRef = useRef<any>(null);
+  const { setPosition, position } = useAppStore();
 
-  // STARTING POINT: Entrance is at (250, 850)
-  const coordX = useRef(250);
-  const coordY = useRef(850);
+  const { destination, floor, nodeId } = route.params || {};
+
+  const heading = useMagnetometer();
+  const zoomRef = useRef<any>(null);
+
+  const coordX = useRef(CORRIDOR_X);
+  const coordY = useRef(ENTRANCE_Y);
   const lastStepTime = useRef(0);
 
-  const { destination, nodeId, floor } = route.params || { destination: "HOD 1", nodeId: "f0_hod1", floor: 0 };
-  
-  // Get the blue dotted line coordinates
-  const pathPointsString = getRoutePoints(nodeId); 
+  const [steps, setSteps] = useState(0);
+  const [routeString, setRouteString] = useState('');
 
+  // =========================
+  // RESOLVE TARGET (SAFE)
+  // =========================
+  const resolveTarget = () => {
+    if (nodeId) {
+      return campusGraph.nodes.find(n => n.id === nodeId);
+    }
+
+    if (destination) {
+      return campusGraph.nodes.find(
+        n =>
+          n.floor === floor &&
+          destination.toLowerCase().includes(
+            n.id.replace(/_/g, ' ').toLowerCase()
+          )
+      );
+    }
+
+    return undefined;
+  };
+
+  // =========================
+  // INIT ROUTE + POSITION
+  // =========================
   useEffect(() => {
-    // Reset to Entrance on load
-    coordX.current = 250;
-    coordY.current = 850;
-    setPosition({ x: 250, y: 850, floor: floor });
+    const target = resolveTarget();
 
-    initPedometer((newSteps) => {
+    if (!target) {
+      console.warn('⚠️ No target resolved for:', destination, nodeId);
+      return;
+    }
+
+    // lock arrow at entrance
+    coordX.current = CORRIDOR_X;
+    coordY.current = ENTRANCE_Y;
+
+    setPosition({
+      x: CORRIDOR_X,
+      y: ENTRANCE_Y,
+      floor
+    });
+
+    // build straight → turn → room route
+    const path = [
+      `${CORRIDOR_X},${ENTRANCE_Y}`,
+      `${CORRIDOR_X},${target.y}`,
+      `${target.x},${target.y}`
+    ].join(' ');
+
+    console.log('ROUTE STRING:', path);
+    setRouteString(path);
+
+    setTimeout(() => {
+      zoomRef.current?.moveTo(CORRIDOR_X, ENTRANCE_Y);
+      zoomRef.current?.zoomTo(1.05);
+    }, 300);
+
+    // step movement
+    initPedometer(() => {
       const now = Date.now();
-      if (now - lastStepTime.current > 500) {
-        setSteps(prev => prev + newSteps);
+      if (now - lastStepTime.current < 500) return;
 
-        // 1. Calculate raw movement
-        const angleRad = (heading - 90) * (Math.PI / 180);
-        const stepDist = 15; 
-        const rawX = coordX.current + (stepDist * Math.cos(angleRad));
-        const rawY = coordY.current + (stepDist * Math.sin(angleRad));
+      setSteps(s => s + 1);
 
-        // 2. PATH SNAPPING: Force the arrow to stay on the dotted line
-        const snappedPoint = getClosestPointOnPath(rawX, rawY, nodeId);
-        
-        coordX.current = snappedPoint.x;
-        coordY.current = snappedPoint.y;
+      const angleRad = (heading - 90) * (Math.PI / 180);
 
-        setPosition({ x: coordX.current, y: coordY.current, floor: floor });
-        lastStepTime.current = now;
-      }
+      coordX.current += STEP_DISTANCE * Math.cos(angleRad);
+      coordY.current += STEP_DISTANCE * Math.sin(angleRad);
+
+      setPosition({
+        x: coordX.current,
+        y: coordY.current,
+        floor
+      });
+
+      lastStepTime.current = now;
     });
 
     return () => stopPedometer();
-  }, [nodeId]);
+  }, [destination, nodeId, floor]);
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* TOP */}
       <View style={styles.topHeader}>
         <Text style={styles.navTarget}>To: {destination}</Text>
-        <TouchableOpacity style={styles.reCenterBtn} onPress={() => zoomableViewRef.current?.zoomTo(1.2)}>
-          <Text style={styles.reCenterText}>RE-CENTER</Text>
-        </TouchableOpacity>
       </View>
 
+      {/* MAP */}
       <View style={styles.mapContainer}>
-        <ZoomableView ref={zoomableViewRef} maxZoom={3} minZoom={0.5} initialZoom={1.2} style={styles.zoomWrapper}>
-          <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT * 0.7} viewBox="50 0 400 900">
+        <ZoomableView
+          ref={zoomRef}
+          maxZoom={2}
+          minZoom={0.8}
+          initialZoom={1}
+        >
+          <Svg width={width} height={height * 0.75} viewBox="0 0 500 1000">
             <SvgXml xml={getFloorSVG(floor)} />
-            
-            {/* THE BLUE DOTTED LINE */}
-            <Polyline points={pathPointsString} fill="none" stroke="#3b82f6" strokeWidth="6" strokeDasharray="12, 8" />
 
-            {/* THE ARROW (Following the line) */}
+            {routeString !== '' && (
+              <Polyline
+                points={routeString}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="6"
+                strokeDasharray="12,8"
+              />
+            )}
+
             <G transform={`rotate(${heading}, ${position.x}, ${position.y})`}>
-               <Path 
-                 d={`M${position.x},${position.y-25} L${position.x+15},${position.y+12} L${position.x},${position.y+2} L${position.x-15},${position.y+12} Z`} 
-                 fill="#3b82f6" stroke="white" strokeWidth="2" 
-               />
+              <Path
+                d={`M${position.x},${position.y - 20}
+                    L${position.x + 12},${position.y + 10}
+                    L${position.x},${position.y + 5}
+                    L${position.x - 12},${position.y + 10} Z`}
+                fill="#3b82f6"
+                stroke="white"
+                strokeWidth="2"
+              />
             </G>
           </Svg>
         </ZoomableView>
       </View>
 
+      {/* BOTTOM */}
       <View style={styles.bottomBar}>
         <Text style={styles.stepText}>👣 {steps} Steps</Text>
-        <TouchableOpacity style={styles.endBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.endBtnText}>End</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.endText}>End</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
+// =========================
+// STYLES (UNCHANGED)
+// =========================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  topHeader: { padding: 20, paddingTop: 60, flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderColor: '#eee' },
-  navTarget: { fontSize: 20, fontWeight: 'bold' },
-  reCenterBtn: { backgroundColor: '#f1f5f9', padding: 8, borderRadius: 8 },
-  reCenterText: { color: '#6366f1', fontWeight: 'bold', fontSize: 12 },
+  topHeader: { padding: 20, paddingTop: 60 },
+  navTarget: { fontSize: 18, fontWeight: 'bold' },
   mapContainer: { flex: 1 },
-  zoomWrapper: { flex: 1 },
-  bottomBar: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderColor: '#eee', paddingBottom: 40 },
-  stepText: { fontSize: 18, fontWeight: 'bold' },
-  endBtn: { backgroundColor: '#ef4444', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
-  endBtnText: { color: 'white', fontWeight: 'bold' }
+  bottomBar: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderColor: '#eee',
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  stepText: { fontSize: 16, fontWeight: 'bold' },
+  endText: { color: '#ef4444', fontWeight: 'bold' }
 });

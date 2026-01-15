@@ -46,7 +46,7 @@ export default function QRScannerScreen() {
           text: "Start Navigation",
           onPress: () => {
             navigation.navigate("FloorMap", {
-              startNodeId: nodeId,
+               nodeId: nodeId, 
               floor: floor
             });
           }
