@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // import React, { useEffect, useState } from 'react';
 // import {
 //   View,
@@ -12,22 +11,6 @@
 // import { useAppStore } from '../stores/appStore';
 // import { useNavigation } from '@react-navigation/native';
 // import { getPersonByName } from '../db/database';
-=======
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
-import { Accelerometer } from 'expo-sensors';
-import { startStepCounter } from '../services/stepCounter';
-import { useAppStore } from '../stores/appStore';
-import { useNavigation } from '@react-navigation/native';
-import { getPersonByName } from '../db/database';
-import { getRouteToDean } from '../services/routingService';
->>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1
 
 
 // const { width, height } = Dimensions.get('window');
@@ -60,7 +43,6 @@ import { getRouteToDean } from '../services/routingService';
 //       <Text style={styles.mapText}>🚀 View Route</Text>
 //     </TouchableOpacity>
 
-<<<<<<< HEAD
 //     <TouchableOpacity 
 //         style={[styles.mapButton, { backgroundColor: '#FF9500', marginTop: 10 }]} 
 //         onPress={async () => {
@@ -75,32 +57,6 @@ import { getRouteToDean } from '../services/routingService';
 //     </View>
 //   );
 // }
-=======
-    <TouchableOpacity 
-        style={[styles.mapButton, { backgroundColor: '#FF9500', marginTop: 10 }]} 
-        onPress={async () => {
-          console.log('🔍 Searching Dean...');
-          const dean = await getPersonByName('Dr. Aris'); // Search name from seedDB
-          console.log('✅ FOUND:', dean);
-          if (dean) alert(`Found: ${dean.name}\nOffice: ${dean.office}`);
-          else alert('Dean not found!');
-        }}>
-        <Text style={styles.mapText}>🧑‍💼 Test DB Search</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-  style={[styles.mapButton, { backgroundColor: '#8E44AD', marginTop: 10 }]} 
-  onPress={() => {
-    const route = getRouteToDean();
-    console.log('🗺️ Route to Dean:', route);
-    alert(`Route: ${route.join(' → ')}`);
-  }}>
-  <Text style={styles.mapText}>🗺️ Test Route Graph</Text>
-</TouchableOpacity>
-    </View>
-  );
-}
->>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1
 
 // const styles = StyleSheet.create({
 //   container: {

@@ -1,10 +1,15 @@
+<<<<<<< HEAD
 // src/data/graph.ts
 
 export interface GraphNode {
+=======
+export interface Node {
+>>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1
   id: string;
   x: number;
   y: number;
   floor: number;
+<<<<<<< HEAD
 }
 
 /**
@@ -74,3 +79,20 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f1_stairs_bottom', x: 320, y: 835, floor: 1 }
   ]
 };
+=======
+  connections: string[]; // Connected node IDs
+}
+
+export const graph: Node[] = [
+  // Hallway Nodes (Walkable path)
+  { id: 'n1', x: 0, y: 0, floor: 1, connections: ['n2'] },
+  { id: 'n2', x: 2, y: 0, floor: 1, connections: ['n1', 'n3', 'room101'] },
+  { id: 'n3', x: 4, y: 0, floor: 1, connections: ['n2', 'stairs_up'] },
+
+  // Destination Nodes (Rooms)
+  { id: 'room101', x: 2, y: 1, floor: 1, connections: ['n2'] }, // Admin Block Room 101
+
+  // Connectors
+  { id: 'stairs_up', x: 4, y: 1, floor: 1, connections: ['n3'] }
+];
+>>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1
