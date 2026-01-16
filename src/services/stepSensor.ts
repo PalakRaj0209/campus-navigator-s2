@@ -10,7 +10,6 @@ export const initPedometer = async (onStep: (steps: number) => void) => {
       _subscription = null;
   }
 
-  // 1. Try Pedometer First
   try {
       const isAvailable = await Pedometer.isAvailableAsync();
       if (isAvailable) {
@@ -30,13 +29,12 @@ export const initPedometer = async (onStep: (steps: number) => void) => {
       }
   } catch (e) { console.log("Pedometer failed, using fallback..."); }
 
-  // 2. Accelerometer Fallback (Redmi-Friendly)
   Accelerometer.setUpdateInterval(200); 
   _subscription = Accelerometer.addListener(({ x, y, z }) => {
       const totalForce = Math.sqrt(x * x + y * y + z * z);
       if (totalForce > 1.3) {
           const now = Date.now();
-          if (now - _lastStepTime > 500) { // 500ms Cooldown
+          if (now - _lastStepTime > 500) { 
               onStep(1);
               _lastStepTime = now;
           }

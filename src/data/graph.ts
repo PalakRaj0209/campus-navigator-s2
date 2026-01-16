@@ -1,15 +1,10 @@
-<<<<<<< HEAD
 // src/data/graph.ts
 
 export interface GraphNode {
-=======
-export interface Node {
->>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1
   id: string;
   x: number;
   y: number;
   floor: number;
-<<<<<<< HEAD
 }
 
 /**
@@ -17,24 +12,14 @@ export interface Node {
  */
 export const CORRIDOR_X = 250;
 
-// Entrance slightly below actual door so arrow is visible
-export const ENTRANCE_Y_F0 = 780;
-export const ENTRANCE_Y_F1 = 780;
-
-/**
- * IMPORTANT RULE USED:
- * - Rooms on LEFT side → x = 120
- * - Rooms on RIGHT side → x = 320
- * - y = vertical center of room box in SVG
- */
+// Entrance/Starting points
+export const ENTRANCE_Y_F0 = 840; // Main Entrance Ground Floor
+export const STAIRS_Y_F1 = 835;   // Starting point if coming from stairs on Floor 1
+export const ENTRANCE_Y_F1 = 840; // Alternate entrance for Floor 1
 
 export const campusGraph: { nodes: GraphNode[] } = {
   nodes: [
-    // =========================
     // FLOOR 0 (GROUND FLOOR)
-    // =========================
-
-    // LEFT SIDE
     { id: 'f0_gents_toilet', x: 120, y: 70, floor: 0 },
     { id: 'f0_hod_1', x: 120, y: 150, floor: 0 },
     { id: 'f0_hod_2', x: 120, y: 195, floor: 0 },
@@ -46,8 +31,6 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f0_store_big', x: 120, y: 560, floor: 0 },
     { id: 'f0_animal_house', x: 120, y: 700, floor: 0 },
     { id: 'f0_ladies_toilet', x: 120, y: 825, floor: 0 },
-
-    // RIGHT SIDE
     { id: 'f0_stairs_top', x: 320, y: 70, floor: 0 },
     { id: 'f0_instrument_room', x: 320, y: 200, floor: 0 },
     { id: 'f0_main_office', x: 320, y: 340, floor: 0 },
@@ -56,11 +39,7 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f0_machine_room', x: 320, y: 700, floor: 0 },
     { id: 'f0_stairs_bottom', x: 320, y: 825, floor: 0 },
 
-    // =========================
     // FLOOR 1 (FIRST FLOOR)
-    // =========================
-
-    // LEFT SIDE
     { id: 'f1_gents_toilet', x: 120, y: 70, floor: 1 },
     { id: 'f1_classroom_7', x: 120, y: 200, floor: 1 },
     { id: 'f1_classroom_6', x: 120, y: 350, floor: 1 },
@@ -68,8 +47,6 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f1_classroom_5', x: 120, y: 540, floor: 1 },
     { id: 'f1_girls_common', x: 120, y: 670, floor: 1 },
     { id: 'f1_ladies_toilet', x: 120, y: 805, floor: 1 },
-
-    // RIGHT SIDE
     { id: 'f1_stairs_top', x: 320, y: 70, floor: 1 },
     { id: 'f1_classroom_1', x: 320, y: 200, floor: 1 },
     { id: 'f1_classroom_2', x: 320, y: 350, floor: 1 },
@@ -79,20 +56,3 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f1_stairs_bottom', x: 320, y: 835, floor: 1 }
   ]
 };
-=======
-  connections: string[]; // Connected node IDs
-}
-
-export const graph: Node[] = [
-  // Hallway Nodes (Walkable path)
-  { id: 'n1', x: 0, y: 0, floor: 1, connections: ['n2'] },
-  { id: 'n2', x: 2, y: 0, floor: 1, connections: ['n1', 'n3', 'room101'] },
-  { id: 'n3', x: 4, y: 0, floor: 1, connections: ['n2', 'stairs_up'] },
-
-  // Destination Nodes (Rooms)
-  { id: 'room101', x: 2, y: 1, floor: 1, connections: ['n2'] }, // Admin Block Room 101
-
-  // Connectors
-  { id: 'stairs_up', x: 4, y: 1, floor: 1, connections: ['n3'] }
-];
->>>>>>> dc282616f2915d477e663c22ec69a7b399ddb4a1

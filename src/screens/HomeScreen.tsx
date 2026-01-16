@@ -1,225 +1,214 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Modal
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, SafeAreaView, Modal, Platform, Alert } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions } from 'expo-camera'; 
+import { campusGraph } from '../data/graph';
 
-import ChatbotScreen from './ChatbotScreen';
-import { getAllPersonnel, Person } from '../db/database';
-import { useAppStore } from '../stores/appStore';
+// Your core suggested cards
+const homeCards = [
+  { id: 'f0_principal', title: 'Principal', role: 'ADMINISTRATION', room: 'Principal Room' },
+  { id: 'f0_hod_1', title: 'HOD 1', role: 'DEPT HEAD', room: 'HOD-1' },
+  { id: 'f0_hod_2', title: 'HOD 2', role: 'DEPT HEAD', room: 'HOD-2' },
+  { id: 'f0_hod_3', title: 'HOD 3', role: 'DEPT HEAD', room: 'HOD-3' },
+  { id: 'f0_main_office', title: 'Office', role: 'ADMINISTRATION', room: 'Main Office' },
+  { id: 'f0_animal_house', title: 'Animal House', role: 'LABORATORY', room: 'Animal House' },
+];
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
-  const { building } = useAppStore();
+  const [search, setSearch] = useState('');
+  const [permission, requestPermission] = useCameraPermissions(); 
+  const [scannerVisible, setScannerVisible] = useState(false);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [chatVisible, setChatVisible] = useState(false);
-  const [suggestions, setSuggestions] = useState<Person[]>([]);
+  // ✅ DYNAMIC SEARCH FILTER
+  const filteredCards = homeCards.filter(card => 
+    card.title.toLowerCase().includes(search.toLowerCase()) || 
+    card.role.toLowerCase().includes(search.toLowerCase()) ||
+    card.room.toLowerCase().includes(search.toLowerCase())
+  );
 
-  useEffect(() => {
-    const data = getAllPersonnel();
-
-    if (!building || building === 'Whole Campus') {
-      setSuggestions(data.slice(0, 4));
-    } else {
-      const filtered = data.filter(p => p.building === building);
-      setSuggestions(filtered.length ? filtered.slice(0, 4) : data.slice(0, 4));
+  const handleNavigate = (nodeId: string, name: string) => {
+    const node = campusGraph.nodes.find(n => n.id === nodeId);
+    if (node) {
+      navigation.navigate('FloorMap', { nodeId, floor: node.floor, destination: name });
     }
-  }, [building]);
+  };
 
-  const filteredData = suggestions.filter(item => {
-    const q = searchQuery.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(q) ||
-      item.office.toLowerCase().includes(q) ||
-      item.role?.toLowerCase().includes(q)
-    );
-  });
+  const onBarcodeScanned = ({ data }: { data: string }) => {
+    // 1. Immediate UI Feedback
+    setScannerVisible(false);
+
+    // 2. Safety Clean: Handle JSON or Plain Text
+    let cleanedData = data.toString().trim();
+    
+    // ✅ FEATURE: Smart JSON Parsing for {"id": "..."}
+    if (cleanedData.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(cleanedData);
+        if (parsed.id) cleanedData = parsed.id;
+      } catch (e) {
+        console.warn("Invalid JSON, using raw string");
+      }
+    }
+    
+    cleanedData = cleanedData.toLowerCase();
+
+    // 3. Robust Search: Ignore case when matching against graph IDs
+    const node = campusGraph.nodes.find(n => n.id.toLowerCase() === cleanedData);
+    
+    if (node) {
+      // ✅ SUCCESS: Generate a friendly name from the ID
+      const formattedName = node.id
+        .split('_')
+        .slice(1)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      handleNavigate(node.id, formattedName);
+    } else {
+      // ✅ DEBUGGING ALERT: Shows exactly what the camera "sees"
+      Alert.alert(
+        "Location Not Found",
+        `Scanned: "${cleanedData}"\n\nEnsure your QR code matches an ID in graph.ts (e.g., f0_principal)`,
+        [{ text: "Try Again", onPress: () => setScannerVisible(true) }]
+      );
+    }
+  };
+
+  const openScanner = async () => {
+    const { granted } = await requestPermission();
+    if (granted) setScannerVisible(true);
+    else alert("Camera permission is required to scan QR codes.");
+  };
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingTop: insets.top + 20,
-          paddingBottom: 120
-        }}
-      >
-        {/* Header */}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
         <View style={styles.header}>
-          <Ionicons name="business" size={32} color="#6366f1" />
+          <MaterialCommunityIcons name="office-building" size={32} color="#5e5ce6" />
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.headerTitle}>Campus Navigator</Text>
-            {building && building !== 'Whole Campus' && (
-              <View style={styles.locationRow}>
-                <Ionicons name="location" size={12} color="#6366f1" />
-                <Text style={styles.locationText}>{building}</Text>
-              </View>
-            )}
+            <Text style={styles.title}>Campus Navigator</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="location" size={14} color="#5e5ce6" />
+              <Text style={styles.subtitle}> Academic Block</Text>
+            </View>
           </View>
         </View>
 
-        {/* Search */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#8e8e93" />
-            <TextInput
-              placeholder="Search room, department, or person"
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#8e8e93" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Cards */}
-        <View style={styles.grid}>
-          {filteredData.map(item => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.card}
-              onPress={() =>
-                navigation.navigate('FloorMap', {
-                  destination: item.name,
-                  floor: item.floor
-                })
-              }
-            >
-              <View style={styles.iconCircle}>
-                <Ionicons
-                  name={
-                    item.role?.toLowerCase().includes('office')
-                      ? 'location'
-                      : 'person'
-                  }
-                  size={20}
-                  color="#6366f1"
-                />
-              </View>
-              <Text style={styles.roleLabel}>
-                {item.role?.toUpperCase() || 'MEMBER'}
-              </Text>
-              <Text style={styles.cardName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <Text style={styles.cardLoc}>{item.office}</Text>
+        {/* ✅ DYNAMIC GOOGLE-STYLE SEARCH BAR */}
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={20} color="#999" />
+          <TextInput 
+            style={styles.searchInput} 
+            placeholder="Search room, department, or person" 
+            value={search}
+            onChangeText={setSearch} 
+            placeholderTextColor="#999"
+          />
+          {search.length > 0 ? (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={22} color="#ccc" />
             </TouchableOpacity>
-          ))}
+          ) : (
+            <TouchableOpacity onPress={openScanner}>
+              <Ionicons name="qr-code-outline" size={24} color="#5e5ce6" />
+            </TouchableOpacity>
+          )}
         </View>
-      </ScrollView>
 
-      {/* Chat FAB */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 20 }]}
-        onPress={() => setChatVisible(true)}
-      >
-        <Ionicons name="chatbubble-ellipses" size={28} color="white" />
-      </TouchableOpacity>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>
+            {search.length > 0 ? 'Search Results' : 'Suggested people & places'}
+          </Text>
+          {search.length === 0 && (
+            <TouchableOpacity onPress={() => navigation.navigate('People')}>
+              <Text style={{ color: '#5e5ce6' }}>View All</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* Chat Modal */}
-      <Modal visible={chatVisible} animationType="slide" transparent>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setChatVisible(false)}
-        >
-          <View style={styles.chatSheet}>
-            <View style={styles.dragHandle} />
-            <ChatbotScreen onClose={() => setChatVisible(false)} />
+        <FlatList
+          data={filteredCards}
+          numColumns={2}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={48} color="#ddd" />
+              <Text style={styles.emptyText}>No results for "{search}"</Text>
+              <TouchableOpacity 
+                style={styles.directoryBtn}
+                onPress={() => navigation.navigate('People')}
+              >
+                <Text style={styles.directoryBtnText}>Check Full Directory</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.card} onPress={() => handleNavigate(item.id, item.title)}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person" size={24} color="#5e5ce6" />
+              </View>
+              <Text style={styles.cardRole}>{item.role}</Text>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.cardRoom}>{item.room}</Text>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+
+      <Modal visible={scannerVisible} animationType="slide">
+        <View style={styles.scannerContainer}>
+          <CameraView 
+            style={StyleSheet.absoluteFillObject} 
+            onBarcodeScanned={onBarcodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+          />
+          
+          {/* ✅ FEATURE: Scanner Visual Overlay */}
+          <View style={styles.overlay}>
+             <View style={styles.scannerFrame} />
+             <Text style={styles.scanText}>Point at a Room QR Code</Text>
           </View>
-        </TouchableOpacity>
+
+          <TouchableOpacity style={styles.closeBtn} onPress={() => setScannerVisible(false)}>
+            <Text style={styles.closeBtnText}>Close Scanner</Text>
+          </TouchableOpacity>
+        </View>
       </Modal>
-    </View>
+
+      <TouchableOpacity style={styles.fab}>
+        <MaterialCommunityIcons name="chat-processing" size={28} color="white" />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
-/* ===== STYLES (UNCHANGED FROM YOUR ORIGINAL) ===== */
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  container: { flex: 1, backgroundColor: '#fff' },
+  content: { padding: 20, flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
-  headerTitle: { fontSize: 26, fontWeight: 'bold' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 13, color: '#6B7280', fontWeight: '600' },
-
-  searchSection: { marginBottom: 30 },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    paddingHorizontal: 15,
-    height: 55,
-    borderWidth: 1,
-    borderColor: '#E5E7EB'
-  },
-  searchInput: { flex: 1, marginLeft: 10 },
-
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 15,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#F3F4F6'
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  roleLabel: { fontSize: 9, color: '#9CA3AF', fontWeight: 'bold' },
-  cardName: { fontSize: 15, fontWeight: 'bold' },
-  cardLoc: { fontSize: 12, color: '#6366f1' },
-
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
-    backgroundColor: '#6366f1',
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end'
-  },
-  chatSheet: {
-    height: '50%',
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25
-  },
-  dragHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 3,
-    alignSelf: 'center',
-    marginVertical: 10
-  }
+  title: { fontSize: 24, fontWeight: 'bold' },
+  subtitle: { fontSize: 14, color: '#666' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f7', borderRadius: 20, padding: 15, marginBottom: 25 },
+  searchInput: { flex: 1, marginLeft: 10, fontSize: 16, color: '#000' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#444' },
+  card: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 15, margin: 8, elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  avatarCircle: { width: 45, height: 45, borderRadius: 25, backgroundColor: '#f0f0ff', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  cardRole: { fontSize: 10, color: '#999', fontWeight: 'bold' },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', marginVertical: 2 },
+  cardRoom: { fontSize: 12, color: '#5e5ce6' },
+  fab: { position: 'absolute', bottom: 30, right: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: '#5e5ce6', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
+  closeBtn: { position: 'absolute', bottom: 50, alignSelf: 'center', backgroundColor: '#5e5ce6', padding: 15, borderRadius: 10 },
+  closeBtnText: { color: 'white', fontWeight: 'bold' },
+  emptyContainer: { flex: 1, alignItems: 'center', marginTop: 40 },
+  emptyText: { color: '#999', marginTop: 10, fontSize: 16 },
+  directoryBtn: { marginTop: 20, backgroundColor: '#f0f0ff', padding: 12, borderRadius: 12 },
+  directoryBtnText: { color: '#5e5ce6', fontWeight: 'bold' },
+  
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
+  scannerFrame: { width: 260, height: 260, borderWidth: 3, borderColor: '#5e5ce6', borderRadius: 30, backgroundColor: 'transparent' },
+  scanText: { color: '#fff', marginTop: 20, fontWeight: 'bold', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }
 });
