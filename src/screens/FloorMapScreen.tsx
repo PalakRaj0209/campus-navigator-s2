@@ -4,24 +4,33 @@ import Svg, { SvgXml, Polyline, G, Path } from 'react-native-svg';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
  
+ 
 import { getFloorSVG } from '../data/floorPlans';
+import { campusGraph, CORRIDOR_X, ENTRANCE_Y_F0 } from '../data/graph';
 import { campusGraph, CORRIDOR_X, ENTRANCE_Y_F0 } from '../data/graph';
 import { getRoutePoints, getPositionAtDistance } from '../services/routing';
 import { initPedometer, stopPedometer } from '../services/stepSensor';
 import { useMagnetometer } from '../services/position';
 import { useAppStore } from '../stores/appStore';
  
+ 
 const { width, height } = Dimensions.get('window');
 const ZoomableView = ReactNativeZoomableView as any;
+ 
  
 export default function FloorMapScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { setPosition, position } = useAppStore();
   const { nodeId, destination, type } = route.params || {};
+  const { nodeId, destination, type } = route.params || {};
   const lastTurnSpokenTime = useRef(0);
+ 
+  const isEmergency = type === 'emergency';
+ 
  
   const isEmergency = type === 'emergency';
  
@@ -30,13 +39,17 @@ export default function FloorMapScreen() {
   const [travelMode, setTravelMode] = useState<'pending' | 'stairs' | 'lift'>('pending');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isArrived, setIsArrived] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isArrived, setIsArrived] = useState(false);
   const [steps, setSteps] = useState(0);
   const [routeString, setRouteString] = useState('');
   const [instructions, setInstructions] = useState('Select Start Floor');
   const [isMuted, setIsMuted] = useState(false);
  
+ 
   const zoomRef = useRef<any>(null);
   const heading = useMagnetometer();
+  const distanceRef = useRef(0);
   const distanceRef = useRef(0);
   const lastStepTime = useRef(0);
   const isSpeaking = useRef(false);
@@ -44,9 +57,20 @@ export default function FloorMapScreen() {
   const slideAnim = useRef(new Animated.Value(-300)).current;
  
   const stepDistRef = useRef(3);
+ 
+  const stepDistRef = useRef(3);
   const [displaySpeed, setDisplaySpeed] = useState(3);
  
+ 
   const targetNode = campusGraph.nodes.find(n => n.id === nodeId);
+ 
+  // Safety speech for emergency activation
+  useEffect(() => {
+    if (isEmergency) {
+      safeSpeak("Emergency protocol activated. Follow the red path to the nearest exit immediately.");
+    }
+  }, [isEmergency]);
+ 
  
   // Safety speech for emergency activation
   useEffect(() => {
@@ -59,12 +83,16 @@ export default function FloorMapScreen() {
     Animated.spring(slideAnim, { toValue: 20, useNativeDriver: true, tension: 40, friction: 8 }).start();
   }, [startConfirmed, travelMode, isTransitioning, isArrived]);
  
+ 
   const handleReCenter = () => {
     if (zoomRef.current) zoomRef.current.moveTo(position.x, position.y, true);
   };
  
+ 
   const safeSpeak = (text: string) => {
     setInstructions(text);
+    if (isMuted) return;
+    if (isSpeaking.current) return;
     if (isMuted) return;
     if (isSpeaking.current) return;
     isSpeaking.current = true;
@@ -73,9 +101,16 @@ export default function FloorMapScreen() {
       onStopped: () => { isSpeaking.current = false; },
       onError: () => { isSpeaking.current = false; }
     });
+    Speech.speak(text, {
+      onDone: () => { isSpeaking.current = false; },
+      onStopped: () => { isSpeaking.current = false; },
+      onError: () => { isSpeaking.current = false; }
+    });
   };
  
+ 
   const checkFloorTransition = (y: number) => {
+    // During emergency, transition points are the same as regular routing points (stairs/lifts)
     // During emergency, transition points are the same as regular routing points (stairs/lifts)
     if (targetNode && currentFloor !== targetNode.floor) {
       const isAtLift = travelMode === 'lift' && Math.abs(y - 445) < 35;
@@ -83,10 +118,13 @@ export default function FloorMapScreen() {
       if (isAtLift || isAtStairs) {
         stopPedometer();
         setIsTransitioning(true);
+        stopPedometer();
+        setIsTransitioning(true);
         safeSpeak("Reached transition point. Confirm arrival.");
       }
     }
   };
+ 
  
   useEffect(() => {
     // Emergency doesn't strictly need targetNode to exist in graph, but we check to prevent crashes
@@ -94,7 +132,13 @@ export default function FloorMapScreen() {
  
     if (currentFloor === (targetNode?.floor ?? 0) && travelMode === 'pending') {
       setTravelMode('lift');
+    // Emergency doesn't strictly need targetNode to exist in graph, but we check to prevent crashes
+    if (!startConfirmed || (!targetNode && !isEmergency) || isTransitioning || isArrived) return;
+ 
+    if (currentFloor === (targetNode?.floor ?? 0) && travelMode === 'pending') {
+      setTravelMode('lift');
     }
+ 
  
     const startPoint = anchorRef.current ?? {
       x: steps === 0 ? CORRIDOR_X : position.x,
@@ -135,6 +179,7 @@ export default function FloorMapScreen() {
     const path = getRoutePoints(startPoint.x, startPoint.y, activeTargetId);
     setRouteString(path);
  
+ 
     if (distanceRef.current === 0 && steps === 0) {
       setPosition({ ...startPoint, floor: currentFloor });
       const pathArray = path.split(' ');
@@ -142,8 +187,10 @@ export default function FloorMapScreen() {
         const firstTargetY = parseFloat(pathArray[1].split(',')[1]);
         const directionMsg = firstTargetY < startPoint.y ? "Go straight." : "Follow the path.";
         if (!isEmergency) safeSpeak(directionMsg);
+        if (!isEmergency) safeSpeak(directionMsg);
       }
     }
+ 
  
     initPedometer(() => {
       if (!path || path === '' || isTransitioning || isArrived) return;
@@ -152,7 +199,23 @@ export default function FloorMapScreen() {
       if (anchorRef.current) anchorRef.current = null;
  
       const potentialDist = distanceRef.current + stepDistRef.current;
+ 
+      const potentialDist = distanceRef.current + stepDistRef.current;
       const nextPos = getPositionAtDistance(path, potentialDist);
+ 
+      if (nextPos.isTurningPoint) {
+        const turnNow = Date.now();
+        if (turnNow - lastTurnSpokenTime.current > 3000) {
+          safeSpeak("Turn ahead.");
+          lastTurnSpokenTime.current = turnNow;
+        }
+      }
+ 
+      // ARRIVAL LOGIC
+      // If emergency, arrival is only true when reaching a ground floor exit
+      const isAtFinalExit = isEmergency ? (currentFloor === 0 && nextPos.isFinished) : (nextPos.isFinished && currentFloor === targetNode?.floor);
+ 
+      if (isAtFinalExit) {
  
       if (nextPos.isTurningPoint) {
         const turnNow = Date.now();
@@ -174,8 +237,15 @@ export default function FloorMapScreen() {
           const side = targetNode && targetNode.x < CORRIDOR_X ? "left" : "right";
           safeSpeak(`Turn ${side}. You have arrived.`);
         }
+        if (isEmergency) {
+          safeSpeak("You have reached the emergency exit. Please exit the building.");
+        } else {
+          const side = targetNode && targetNode.x < CORRIDOR_X ? "left" : "right";
+          safeSpeak(`Turn ${side}. You have arrived.`);
+        }
         setIsArrived(true);
       }
+ 
  
       distanceRef.current = potentialDist;
       setSteps(s => s + 1);
@@ -186,6 +256,8 @@ export default function FloorMapScreen() {
     return () => stopPedometer();
   }, [currentFloor, startConfirmed, travelMode, isTransitioning, isArrived, nodeId, isEmergency]);
  
+  }, [currentFloor, startConfirmed, travelMode, isTransitioning, isArrived, nodeId, isEmergency]);
+ 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -194,21 +266,37 @@ export default function FloorMapScreen() {
             {isEmergency ? "EMERGENCY EXIT" : destination}
           </Text>
           <Text style={[styles.guidanceText, isEmergency && { color: '#ff3b30' }]}>{instructions}</Text>
+          <Text style={[styles.headerTitle, isEmergency && { color: '#ff3b30' }]}>
+            {isEmergency ? "EMERGENCY EXIT" : destination}
+          </Text>
+          <Text style={[styles.guidanceText, isEmergency && { color: '#ff3b30' }]}>{instructions}</Text>
         </View>
         <View style={styles.headerIcons}>
           <TouchableOpacity onPress={() => setIsMuted(!isMuted)} style={styles.iconBtn}>
             <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={20} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
+            <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={20} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleReCenter} style={styles.iconBtn}>
+            <Ionicons name="locate-outline" size={20} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
             <Ionicons name="locate-outline" size={20} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           </TouchableOpacity>
         </View>
       </View>
  
+ 
       <View style={styles.mapArea}>
         <ZoomableView ref={zoomRef} maxZoom={3} minZoom={0.5} initialZoom={1.0} bindToBorders={true} style={{ backgroundColor: '#fff' }}>
           <Svg width={width} height={height * 0.65} viewBox="0 0 500 1000">
             <SvgXml xml={getFloorSVG(currentFloor)} />
+            {routeString !== '' && (
+              <Polyline
+                points={routeString}
+                fill="none"
+                stroke={isEmergency ? "#ff3b30" : "#3b82f6"}
+                strokeWidth="8"
+                strokeDasharray={isEmergency ? "0" : "10,6"}
+              />
+            )}
             {routeString !== '' && (
               <Polyline
                 points={routeString}
@@ -225,13 +313,21 @@ export default function FloorMapScreen() {
                 stroke="white"
                 strokeWidth="2"
               />
+              <Path
+                d={`M${position.x},${position.y - 12} L${position.x + 8},${position.y + 8} L${position.x},${position.y + 4} L${position.x - 8},${position.y + 8} Z`}
+                fill={isEmergency ? "#ff3b30" : "#3b82f6"}
+                stroke="white"
+                strokeWidth="2"
+              />
             </G>
           </Svg>
         </ZoomableView>
  
+ 
         {/* Start Choice */}
         {!startConfirmed && (
           <Animated.View style={[styles.miniPopup, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.miniPopupTitle}>Confirm Current Floor</Text>
             <Text style={styles.miniPopupTitle}>Confirm Current Floor</Text>
             <View style={styles.popupRow}>
               <TouchableOpacity style={styles.miniBtn} onPress={() => { setCurrentFloor(0); setStartConfirmed(true); }}><Text style={styles.btnText}>Ground</Text></TouchableOpacity>
@@ -240,9 +336,12 @@ export default function FloorMapScreen() {
           </Animated.View>
         )}
  
+ 
         {/* Mode Choice */}
         {startConfirmed && travelMode === 'pending' && (isEmergency || (targetNode && currentFloor !== targetNode.floor)) && (
+        {startConfirmed && travelMode === 'pending' && (isEmergency || (targetNode && currentFloor !== targetNode.floor)) && (
           <Animated.View style={[styles.miniPopup, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.miniPopupTitle}>Exit via?</Text>
             <Text style={styles.miniPopupTitle}>Exit via?</Text>
             <View style={styles.popupRow}>
               <TouchableOpacity style={styles.miniBtn} onPress={() => setTravelMode('lift')}><Text style={styles.btnText}>Lift</Text></TouchableOpacity>
@@ -251,13 +350,16 @@ export default function FloorMapScreen() {
           </Animated.View>
         )}
  
+ 
         {/* Transition Confirm */}
         {isTransitioning && (
           <Animated.View style={[styles.miniPopup, { transform: [{ translateY: slideAnim }] }]}>
             <Text style={styles.miniPopupTitle}>Changed Floors?</Text>
+            <Text style={styles.miniPopupTitle}>Changed Floors?</Text>
             <TouchableOpacity style={styles.miniConfirmBtn} onPress={() => {
                 const nextFloor = currentFloor === 0 ? 1 : 0;
                 anchorRef.current = { x: CORRIDOR_X, y: travelMode === 'lift' ? (nextFloor === 1 ? 465 : 445) : (position.y < 300 ? 70 : 835) };
+                setCurrentFloor(nextFloor); setIsTransitioning(false); distanceRef.current = 0; safeSpeak("Follow the path.");
                 setCurrentFloor(nextFloor); setIsTransitioning(false); distanceRef.current = 0; safeSpeak("Follow the path.");
               }}>
               <Text style={styles.btnText}>I am on Floor {currentFloor === 0 ? '1' : '0'} now</Text>
@@ -266,8 +368,11 @@ export default function FloorMapScreen() {
         )}
  
         {/* ARRIVED POPUP */}
+ 
+        {/* ARRIVED POPUP */}
         {isArrived && (
           <Animated.View style={[styles.miniPopup, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.miniPopupTitle}>{isEmergency ? "🏃 Safe at Exit!" : "🎉 Destination Reached!"}</Text>
             <Text style={styles.miniPopupTitle}>{isEmergency ? "🏃 Safe at Exit!" : "🎉 Destination Reached!"}</Text>
             <TouchableOpacity style={styles.miniConfirmBtn} onPress={() => navigation.goBack()}>
               <Text style={styles.btnText}>Close Navigation</Text>
@@ -275,8 +380,10 @@ export default function FloorMapScreen() {
           </Animated.View>
         )}
  
+ 
         <View style={styles.speedControl}>
           <TouchableOpacity onPress={() => { stepDistRef.current = Math.max(1, stepDistRef.current - 1); setDisplaySpeed(stepDistRef.current); }}>
+            <Ionicons name="remove-circle" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
             <Ionicons name="remove-circle" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           </TouchableOpacity>
           <View style={styles.speedIndicator}>
@@ -285,12 +392,15 @@ export default function FloorMapScreen() {
           </View>
           <TouchableOpacity onPress={() => { stepDistRef.current = Math.min(15, stepDistRef.current + 1); setDisplaySpeed(stepDistRef.current); }}>
             <Ionicons name="add-circle" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
+            <Ionicons name="add-circle" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           </TouchableOpacity>
         </View>
       </View>
  
+ 
       <View style={styles.footer}>
         <View style={styles.stepsRow}>
+          <MaterialCommunityIcons name="foot-print" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           <MaterialCommunityIcons name="foot-print" size={24} color={isEmergency ? "#ff3b30" : "#5e5ce6"} />
           <Text style={styles.stepsCountText}>{steps} Steps</Text>
         </View>
@@ -301,6 +411,7 @@ export default function FloorMapScreen() {
     </SafeAreaView>
   );
 }
+ 
  
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
