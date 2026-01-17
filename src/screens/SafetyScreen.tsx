@@ -2,10 +2,10 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-
+ 
 export default function SafetyScreen() {
   const navigation = useNavigation<any>();
-
+ 
   const handleSOS = () => {
     Alert.alert(
       "Emergency SOS",
@@ -16,7 +16,7 @@ export default function SafetyScreen() {
       ]
     );
   };
-
+ 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -27,13 +27,13 @@ export default function SafetyScreen() {
         <Text style={styles.headerText}>Campus Safety</Text>
         <View style={{ width: 40 }} />
       </View>
-
+ 
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Emergency Actions</Text>
-        
+       
         {/* 1. SOS Button */}
-        <TouchableOpacity 
-          style={styles.sosButton} 
+        <TouchableOpacity
+          style={styles.sosButton}
           activeOpacity={0.8}
           onPress={handleSOS}
         >
@@ -43,17 +43,22 @@ export default function SafetyScreen() {
           <Text style={styles.sosText}>Trigger SOS</Text>
           <Text style={styles.sosSubtext}>Notifies Campus Security immediately</Text>
         </TouchableOpacity>
-
+ 
         {/* 2. Emergency Exit - Navigation via useNavigation */}
-        <TouchableOpacity 
-          style={styles.exitButton} 
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate("FloorMap", { 
-            destination: "Nearest Emergency Exit", 
-            type: "emergency",
-            room: "Staircase A" 
-          })}
-        >
+   
+<TouchableOpacity
+  style={styles.exitButton}
+  onPress={() => {
+    // Logic: If user is on F1, they must go to stairs first.
+    // For simplicity, we send them to the 'f0_exit_main'
+    // and let the FloorMapScreen handle the floor transition.
+    navigation.navigate("FloorMap", {
+      nodeId: "f0_exit_main",
+      destination: "Nearest Emergency Exit",
+      type: "emergency"
+    });
+  }}
+>
           <View style={styles.iconBox}>
             <Ionicons name="exit" size={28} color="#FF9500" />
           </View>
@@ -63,7 +68,7 @@ export default function SafetyScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
         </TouchableOpacity>
-
+ 
         {/* 3. Security Info Card */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
@@ -77,16 +82,16 @@ export default function SafetyScreen() {
     </SafeAreaView>
   );
 }
-
+ 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#fff', 
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
@@ -96,11 +101,11 @@ const styles = StyleSheet.create({
   headerText: { fontSize: 18, fontWeight: 'bold', color: '#1a1a1a' },
   content: { padding: 25, flex: 1, justifyContent: 'center' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#9CA3AF', letterSpacing: 1, marginBottom: 20, textTransform: 'uppercase' },
-  sosButton: { 
-    backgroundColor: '#FF3B30', 
-    padding: 40, 
-    borderRadius: 30, 
-    alignItems: 'center', 
+  sosButton: {
+    backgroundColor: '#FF3B30',
+    padding: 40,
+    borderRadius: 30,
+    alignItems: 'center',
     marginBottom: 25,
     shadowColor: '#FF3B30',
     shadowOpacity: 0.4,
@@ -139,9 +144,9 @@ const styles = StyleSheet.create({
   exitTextContainer: { flex: 1, marginLeft: 15 },
   exitTitle: { fontSize: 18, fontWeight: 'bold', color: '#FF9500' },
   exitSubtitle: { fontSize: 13, color: '#8E8E93' },
-  infoCard: { 
-    backgroundColor: '#F8F9FA', 
-    padding: 25, 
+  infoCard: {
+    backgroundColor: '#F8F9FA',
+    padding: 25,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E5E7EB'
@@ -150,4 +155,4 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 12, color: '#6366f1', fontWeight: 'bold', letterSpacing: 0.5 },
   infoNumber: { fontSize: 26, fontWeight: 'bold', color: '#1F2937' },
   infoSub: { fontSize: 13, color: '#6B7280', marginTop: 5 }
-});
+});  

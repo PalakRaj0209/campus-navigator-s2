@@ -133,13 +133,26 @@ const Floor4SVG = `
   ${draw3DIsoBox(270, 900, 200, 80, COLORS.service, "#475569", "STAIRS")}
 </svg>`;
 
+const localFloorPlans: Record<number, string> = {
+  0: Floor0SVG,
+  1: Floor1SVG,
+  2: Floor2SVG,
+  3: Floor3SVG,
+  4: Floor4SVG,
+};
+
+let remoteFloorPlans: Record<number, string> | null = null;
+
+export const setRemoteFloorPlans = (plans: Record<number, string>) => {
+  if (!Object.keys(plans).length) return;
+  remoteFloorPlans = plans;
+};
+
+export const getLocalFloorPlans = () => localFloorPlans;
+
 export const getFloorSVG = (floor: number) => {
-  switch (floor) {
-    case 0: return Floor0SVG;
-    case 1: return Floor1SVG;
-    case 2: return Floor2SVG;
-    case 3: return Floor3SVG;
-    case 4: return Floor4SVG;
-    default: return Floor0SVG;
+  if (remoteFloorPlans && remoteFloorPlans[floor]) {
+    return remoteFloorPlans[floor];
   }
+  return localFloorPlans[floor] ?? localFloorPlans[0];
 };

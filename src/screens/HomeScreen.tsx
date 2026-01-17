@@ -91,7 +91,7 @@ export default function HomeScreen() {
             <Text style={styles.title}>Campus Navigator</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="location" size={14} color="#5e5ce6" />
-              <Text style={styles.subtitle}> Academic Block</Text>
+              <Text style={styles.subtitle}> pharmacy Block</Text>
             </View>
           </View>
         </View>
@@ -177,7 +177,7 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('Chatbot')}>
         <MaterialCommunityIcons name="chat-processing" size={28} color="white" />
       </TouchableOpacity>
     </SafeAreaView>
