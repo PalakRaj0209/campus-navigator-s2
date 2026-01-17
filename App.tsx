@@ -4,20 +4,39 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 
 // ✅ Keep your current DB functions exactly as they are
-import { initDB, seedDB } from './src/db/database'; 
+import { initDB, seedDB, getAllPersonnel } from './src/db/database';
+import { seedCloudOnStart, seedMapOnStart, syncMapOnStart } from './src/config';
+import { syncPersonnelFromCloud, uploadLocalPersonnelToCloud } from './src/services/personnelSync';
+import { syncMapDataFromCloud, uploadLocalMapDataToCloud } from './src/services/mapSync';
 
 export default function App() {
 
   useEffect(() => {
-    // We execute your existing functions here
-    try {
-      initDB();
-      seedDB();
-      console.log("🚀 Database is ready using existing logic!");
-    } catch (e) {
-      console.error("❌ DB Setup Error:", e);
-    }
+    const bootstrap = async () => {
+      try {
+        initDB();
+        const existing = getAllPersonnel();
+        if (existing.length === 0) {
+          seedDB();
+        }
+        if (seedCloudOnStart) {
+          await uploadLocalPersonnelToCloud();
+        }
+        await syncPersonnelFromCloud();
+        if (syncMapOnStart) {
+          const result = await syncMapDataFromCloud();
+          if (result.status === 'empty' && seedMapOnStart) {
+            await uploadLocalMapDataToCloud();
+            await syncMapDataFromCloud();
+          }
+        }
+        console.log("🚀 Database is ready using existing logic!");
+      } catch (e) {
+        console.error("❌ DB Setup Error:", e);
+      }
+    };
 
+    bootstrap();
   }, []);
 
   return (

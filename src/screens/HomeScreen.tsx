@@ -177,7 +177,7 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('Chatbot')}>
         <MaterialCommunityIcons name="chat-processing" size={28} color="white" />
       </TouchableOpacity>
     </SafeAreaView>

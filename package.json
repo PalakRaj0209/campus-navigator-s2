@@ -25,6 +25,7 @@
     "expo-speech": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "firebase": "^12.8.0",
     "lodash": "^4.17.21",
     "react": "19.1.0",
     "react-dom": "19.1.0",

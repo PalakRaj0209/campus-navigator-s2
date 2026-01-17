@@ -126,6 +126,8 @@ export interface Person {
   nodeId: string; 
 }
 
+export type PersonInput = Omit<Person, 'id'>;
+
 export const initDB = () => {
   try {
     db.execSync(`
@@ -200,9 +202,34 @@ export const seedDB = () => {
   }
 };
 
-// ✅ Exporting getAllPersonnel to resolve HomeScreen.tsx error
+//  Exporting getAllPersonnel to resolve HomeScreen.tsx error
 export const getAllPersonnel = (): Person[] => {
   return db.getAllSync<Person>('SELECT * FROM personnel');
+};
+
+export const upsertPersonnel = (people: PersonInput[]) => {
+  if (!people.length) return;
+
+  try {
+    db.withTransactionSync(() => {
+      people.forEach((person) => {
+        db.runSync('DELETE FROM personnel WHERE nodeId = ?', [person.nodeId]);
+        db.runSync(
+          'INSERT INTO personnel (name, role, office, floor, building, nodeId) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            person.name,
+            person.role,
+            person.office,
+            person.floor,
+            person.building,
+            person.nodeId,
+          ]
+        );
+      });
+    });
+  } catch (error) {
+    console.error('? Upsert error:', error);
+  }
 };
 
 export const getPersonByName = (name: string): Person | null => {

@@ -7,20 +7,128 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
 // IMPORT: Connect to your SQLite database logic
-import { getPersonByName } from '../db/database';
+import { getAllPersonnel, getPersonByName, Person } from '../db/database';
+import { askGemini } from '../services/llm';
+import { getRoutePoints } from '../services/routing';
+import { useAppStore } from '../stores/appStore';
 
 interface ChatbotProps {
   onClose?: () => void;
 }
 
+const STOP_WORDS = new Set([
+  'where', 'is', 'the', 'a', 'an', 'of', 'at', 'in', 'on', 'to', 'me', 'please',
+  'can', 'you', 'help', 'find', 'locate', 'navigate', 'there', 'for', 'about'
+]);
+
+const PIXELS_PER_METER = 5;
+const MIN_SEGMENT_DISTANCE_PX = 5;
+
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getTokens = (value: string) => {
+  const tokens = normalizeText(value).split(' ').filter(Boolean);
+  const filtered = tokens.filter((token) => !STOP_WORDS.has(token));
+  return filtered.length ? filtered : tokens;
+};
+
+const findBestPersonMatch = (query: string, people: Person[]): Person | null => {
+  const normalizedQuery = normalizeText(query);
+  const tokens = getTokens(query);
+  let best: Person | null = null;
+  let bestScore = 0;
+
+  for (const person of people) {
+    const name = normalizeText(person.name);
+    const office = normalizeText(person.office);
+    const haystack = normalizeText(
+      [person.name, person.office, person.role, person.building, person.nodeId].join(' ')
+    );
+    let score = 0;
+
+    if (name && normalizedQuery.includes(name)) score += 3;
+    if (office && normalizedQuery.includes(office)) score += 2;
+    tokens.forEach((token) => {
+      if (haystack.includes(token)) score += 1;
+    });
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = person;
+    }
+  }
+
+  return bestScore >= 2 ? best : null;
+};
+
+const getDirectionLabel = (dx: number, dy: number) => {
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? 'right' : 'left';
+  }
+  return 'straight';
+};
+
+const buildStepDirections = (route: string) => {
+  if (!route) return [];
+
+  const points = route
+    .split(' ')
+    .map((point) => {
+      const [x, y] = point.split(',').map(Number);
+      return { x, y };
+    })
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+  if (points.length < 2) return [];
+
+  const steps: { direction: string; meters: number }[] = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const start = points[i];
+    const end = points[i + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < MIN_SEGMENT_DISTANCE_PX) continue;
+
+    steps.push({
+      direction: getDirectionLabel(dx, dy),
+      meters: Math.max(1, Math.round(distance / PIXELS_PER_METER)),
+    });
+  }
+
+  return steps;
+};
+
+const formatStepText = (steps: { direction: string; meters: number }[]) => {
+  if (!steps.length) return '';
+  return steps
+    .map((step, index) => {
+      if (step.direction === 'straight') {
+        return `${index + 1}. Go straight for about ${step.meters} m.`;
+      }
+      if (index === 0) {
+        return `${index + 1}. Move ${step.direction} for about ${step.meters} m.`;
+      }
+      return `${index + 1}. Turn ${step.direction} and go for about ${step.meters} m.`;
+    })
+    .join('\n');
+};
+
 export default function ChatbotScreen({ onClose }: ChatbotProps) {
   const navigation = useNavigation<any>();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { position } = useAppStore();
   
   const [messages, setMessages] = useState([
     { id: 1, text: "Hello! I'm your Campus AI. How can I help you find a room, locate a person, or stay safe today?", sender: 'ai' }
   ]);
   const [inputText, setInputText] = useState('');
+  const [pendingTarget, setPendingTarget] = useState<{ nodeId: string; destination: string } | null>(null);
 
   const sendMessage = async () => {
     if (inputText.trim() === '') return;
@@ -33,17 +141,60 @@ export default function ChatbotScreen({ onClose }: ChatbotProps) {
     setTimeout(async () => {
       let aiText = "I'm checking the campus directory for you...";
       const lowerQuery = query.toLowerCase();
+      const isAffirmative = ['yes', 'y', 'yeah', 'yep', 'sure', 'ok', 'okay', 'start', 'go ahead', 'please']
+        .some(token => lowerQuery.includes(token));
+      const isNavigateIntent = ['navigate', 'direction', 'directions', 'route', 'take me', 'guide me', 'start navigation']
+        .some(token => lowerQuery.includes(token));
+      const isNegative = ['no', 'nope', 'not now', 'cancel', 'stop', 'later']
+        .some(token => lowerQuery.includes(token));
+      const isLocationQuery = /(where|locate|find|office|room|lab|classroom|hod|principal|dean|director|library|toilet|stairs|lift|store)/i
+        .test(lowerQuery);
       
       try {
-        const person = await getPersonByName(query);
-        if (person) {
-          aiText = `${person.name} is located in the ${person.building}, Office ${person.office}. Would you like to start navigation?`;
-        } else if (lowerQuery.includes('exit')) {
-          aiText = "The nearest emergency exit is currently the South Staircase, 30 meters from your position.";
-        } else if (lowerQuery.includes('safe') || lowerQuery.includes('security')) {
-          aiText = "The campus is currently under normal status. Security contact: +91 999 888 7777.";
+        if (pendingTarget && (isAffirmative || isNavigateIntent)) {
+          aiText = `Starting navigation to ${pendingTarget.destination}.`;
+          navigation.navigate('FloorMap', {
+            nodeId: pendingTarget.nodeId,
+            destination: pendingTarget.destination,
+          });
+          setPendingTarget(null);
+        } else if (pendingTarget && isNegative) {
+          aiText = "Okay, let me know if you need anything else.";
+          setPendingTarget(null);
         } else {
-          aiText = "I couldn't find that specific person or location. Try searching for 'Dr. Aris' or ask about 'exits'.";
+          const directPerson = await getPersonByName(query);
+          const bestPerson = directPerson ?? findBestPersonMatch(query, getAllPersonnel());
+
+          if (bestPerson) {
+            const route = getRoutePoints(position.x, position.y, bestPerson.nodeId);
+            const steps = buildStepDirections(route);
+            const stepText = formatStepText(steps);
+
+            aiText = `${bestPerson.name} is located in the ${bestPerson.building}, Office ${bestPerson.office}.`;
+            if (stepText) {
+              aiText += `\n\nSteps:\n${stepText}`;
+            }
+            aiText += '\n\nWould you like to start navigation?';
+            if (bestPerson.nodeId) {
+              setPendingTarget({ nodeId: bestPerson.nodeId, destination: bestPerson.name });
+            }
+          } else if (lowerQuery.includes('exit')) {
+            aiText = "The nearest emergency exit is currently the South Staircase, 30 meters from your position.";
+          } else if (lowerQuery.includes('safe') || lowerQuery.includes('security')) {
+            aiText = "The campus is currently under normal status. Security contact: +91 999 888 7777.";
+          } else if (isLocationQuery) {
+            aiText = "I could not find that location in the campus directory. Try a room name, person, or scan a QR code.";
+          } else {
+            const llmReply = await askGemini(
+              query,
+              "You are a campus navigation assistant. Answer briefly and suggest actionable next steps when possible."
+            );
+            if (llmReply) {
+              aiText = llmReply;
+            } else {
+              aiText = "I couldn't find that specific person or location. Try searching for 'Dr. Aris' or ask about 'exits'.";
+            }
+          }
         }
       } catch (e) {
         aiText = "I'm having trouble accessing the directory right now. Please try again.";

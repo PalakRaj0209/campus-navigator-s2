@@ -17,8 +17,7 @@ export const ENTRANCE_Y_F0 = 840; // Main Entrance Ground Floor
 export const STAIRS_Y_F1 = 835;   // Starting point if coming from stairs on Floor 1
 export const ENTRANCE_Y_F1 = 840; // Alternate entrance for Floor 1
 
-export const campusGraph: { nodes: GraphNode[] } = {
-  nodes: [
+const localGraphNodes: GraphNode[] = [
     // FLOOR 0 (GROUND FLOOR)
     { id: 'f0_gents_toilet', x: 120, y: 70, floor: 0 },
     { id: 'f0_hod_1', x: 120, y: 150, floor: 0 },
@@ -54,5 +53,15 @@ export const campusGraph: { nodes: GraphNode[] } = {
     { id: 'f1_classroom_3', x: 320, y: 580, floor: 1 },
     { id: 'f1_classroom_4', x: 320, y: 720, floor: 1 },
     { id: 'f1_stairs_bottom', x: 320, y: 835, floor: 1 }
-  ]
+];
+
+export const campusGraph: { nodes: GraphNode[] } = {
+  nodes: localGraphNodes,
+};
+
+export const getLocalGraphNodes = () => localGraphNodes;
+
+export const setRemoteGraphNodes = (nodes: GraphNode[]) => {
+  if (!nodes.length) return;
+  campusGraph.nodes = nodes;
 };
