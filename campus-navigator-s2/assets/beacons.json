@@ -1,0 +1,23 @@
+[
+  {
+    "key": "uuid1:major1:minor1",
+    "floorId": 0,
+    "x": 250,
+    "y": 840,
+    "name": "Main Entrance Beacon"
+  },
+  {
+    "key": "uuid2:major2:minor2",
+    "floorId": 0,
+    "x": 120,
+    "y": 360,
+    "name": "Principal Office Beacon"
+  },
+  {
+    "key": "uuid3:major3:minor3",
+    "floorId": 1,
+    "x": 320,
+    "y": 835,
+    "name": "F1 Stairs Beacon"
+  }
+]
